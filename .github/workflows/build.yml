@@ -20,57 +20,18 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
     
-    - name: Verify Java version
-      run: |
-        java -version
-        echo "JAVA_HOME=$JAVA_HOME" >> $GITHUB_ENV
-    
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
         python-version: '3.10'
     
-    - name: Install system dependencies
+    - name: Install dependencies
       run: |
         sudo apt-get update
         sudo apt-get install -y python3-pip build-essential git zip unzip
         sudo apt-get install -y autoconf libtool pkg-config zlib1g-dev libncurses5-dev
         sudo apt-get install -y libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev automake
         pip install buildozer cython==0.29.36
-    
-    - name: Pre-install Android SDK with licenses
-      run: |
-        # Create directories
-        mkdir -p ~/.buildozer/android/platform/android-sdk/cmdline-tools
-        
-        # Download and install command line tools
-        cd /tmp
-        wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
-        unzip -q commandlinetools-linux-11076708_latest.zip
-        mv cmdline-tools ~/.buildozer/android/platform/android-sdk/cmdline-tools/latest
-        
-        # Set environment
-        export ANDROID_SDK_ROOT=~/.buildozer/android/platform/android-sdk
-        export PATH=$PATH:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin
-        
-        # Accept ALL licenses automatically
-        yes | sdkmanager --licenses || true
-        
-        # Install required packages
-        sdkmanager "platform-tools"
-        sdkmanager "platforms;android-33"
-        sdkmanager "build-tools;33.0.2"
-        
-        # Verify installation
-        echo "Installed packages:"
-        sdkmanager --list_installed
-        
-        # Check build-tools
-        ls -la $ANDROID_SDK_ROOT/build-tools/ || echo "No build-tools directory"
-        
-        # Persist environment for next steps
-        echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
-        echo "PATH=$PATH" >> $GITHUB_PATH
     
     - name: Cache Buildozer dependencies
       uses: actions/cache@v4
@@ -83,22 +44,11 @@ jobs:
           ${{ runner.os }}-buildozer-
     
     - name: Build APK
-      env:
-        ANDROID_SDK_ROOT: ~/.buildozer/android/platform/android-sdk
-        ANDROID_HOME: ~/.buildozer/android/platform/android-sdk
       run: |
-        export PATH=$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools:$PATH
-        
-        # Debug: Check SDK status
-        echo "Android SDK Root: $ANDROID_SDK_ROOT"
-        ls -la $ANDROID_SDK_ROOT/ || true
-        ls -la $ANDROID_SDK_ROOT/build-tools/ 2>/dev/null || echo "build-tools not found"
-        
-        # Create buildozer.spec backup and modify to use existing SDK
-        cp buildozer.spec buildozer.spec.backup
-        
-        # Build
-        buildozer android debug
+        # Accept licenses automatically by piping yes
+        yes | buildozer android debug || true
+        # Retry if first attempt failed
+        yes | buildozer android debug
         
     - name: Upload APK
       uses: actions/upload-artifact@v4
@@ -106,14 +56,4 @@ jobs:
       with:
         name: udhar-app-apk
         path: bin/*.apk
-        retention-days: 5
-        
-    - name: Upload Build Logs (on failure)
-      uses: actions/upload-artifact@v4
-      if: failure()
-      with:
-        name: buildozer-logs
-        path: |
-          build.log
-          ~/.buildozer/android/platform/build-*/build.log
         retention-days: 5
