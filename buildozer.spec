@@ -16,9 +16,9 @@ android.ndk = 25b
 android.archs = arm64-v8a
 android.allow_backup = True
 
-# CRITICAL: Don't let buildozer try to install SDK again
-android.skip_update = False
-android.accept_sdk_license = True
+# REMOVE THESE TWO LINES:
+# android.skip_update = False
+# android.accept_sdk_license = True
 
 [buildozer]
 log_level = 2
