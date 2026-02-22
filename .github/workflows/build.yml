@@ -9,7 +9,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest  # Latest version
+    runs-on: ubuntu-22.04
     
     steps:
     - uses: actions/checkout@v4
@@ -49,26 +49,59 @@ jobs:
           libtool \
           pkg-config \
           zlib1g-dev \
-          libncurses-dev \
-          libtinfo6 \
+          libncurses5-dev \
+          libncursesw5-dev \
+          libtinfo5 \
           cmake \
           libssl-dev \
           automake \
-          libltdl-dev \
-          patch
+          libltdl-dev
     
     - name: Install Buildozer
       run: |
         pip install --upgrade pip
         pip install buildozer cython==0.29.36
     
+    - name: Cache Android SDK
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.buildozer/android/platform/android-sdk
+          ~/.buildozer/android/platform/android-ndk
+          ~/.buildozer/android/platform/apache-ant
+          ~/.buildozer/android/platform/packages
+        key: ${{ runner.os }}-android-sdk-${{ hashFiles('buildozer.spec') }}
+        restore-keys: |
+          ${{ runner.os }}-android-sdk-
+    
+    - name: Accept Android Licenses
+      run: |
+        mkdir -p ~/.buildozer/android/platform/android-sdk/cmdline-tools
+        export ANDROID_SDK_ROOT=~/.buildozer/android/platform/android-sdk
+        yes | ~/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin/sdkmanager --licenses || true
+        yes | ~/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager --licenses || true
+    
     - name: Build APK
       run: |
+        export ANDROID_SDK_ROOT=~/.buildozer/android/platform/android-sdk
+        buildozer android debug || true
+        # Retry with license acceptance if first fails
+        yes | ~/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin/sdkmanager --licenses 2>/dev/null || true
+        yes | ~/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager --licenses 2>/dev/null || true
         buildozer android debug
         
     - name: Upload APK
       uses: actions/upload-artifact@v4
+      if: always()
       with:
         name: udhar-app-apk
         path: bin/*.apk
+        retention-days: 5
+        
+    - name: Upload Build Logs
+      uses: actions/upload-artifact@v4
+      if: failure()
+      with:
+        name: build-logs
+        path: ~/.buildozer/android/platform/build-*/build.log
         retention-days: 5
