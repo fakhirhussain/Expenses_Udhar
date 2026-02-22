@@ -14,15 +14,26 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+    
+    - name: Verify Java version
+      run: |
+        java -version
+        echo "JAVA_HOME=$JAVA_HOME" >> $GITHUB_ENV
+    
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
         python-version: '3.10'
     
-    - name: Install dependencies
+    - name: Install system dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y python3-pip build-essential git zip unzip openjdk-17-jdk
+        sudo apt-get install -y python3-pip build-essential git zip unzip
         sudo apt-get install -y autoconf libtool pkg-config zlib1g-dev libncurses5-dev
         sudo apt-get install -y libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev automake
         pip install buildozer cython==0.29.36
@@ -37,24 +48,8 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-buildozer-
     
-    - name: Build APK (with retry)
-      run: |
-        # First attempt - may fail on licenses
-        buildozer android debug 2>&1 | tee build.log || true
-        
-        # Accept licenses if SDK was partially installed
-        if [ -d ~/.buildozer/android/platform/android-sdk ]; then
-          export ANDROID_SDK_ROOT=~/.buildozer/android/platform/android-sdk
-          if [ -f $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager ]; then
-            yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses || true
-          fi
-          if [ -f $ANDROID_SDK_ROOT/tools/bin/sdkmanager ]; then
-            yes | $ANDROID_SDK_ROOT/tools/bin/sdkmanager --licenses || true
-          fi
-        fi
-        
-        # Second attempt
-        buildozer android debug
+    - name: Build APK
+      run: buildozer android debug
         
     - name: Upload APK
       uses: actions/upload-artifact@v4
