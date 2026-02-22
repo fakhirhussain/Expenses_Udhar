@@ -19,89 +19,46 @@ jobs:
       with:
         python-version: '3.10'
     
-    - name: Install system dependencies
+    - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y \
-          python3-pip \
-          build-essential \
-          git \
-          zip \
-          unzip \
-          openjdk-17-jdk \
-          ffmpeg \
-          libsdl2-dev \
-          libsdl2-image-dev \
-          libsdl2-mixer-dev \
-          libsdl2-ttf-dev \
-          libportmidi-dev \
-          libswscale-dev \
-          libavformat-dev \
-          libavcodec-dev \
-          zlib1g-dev \
-          libgstreamer1.0 \
-          gstreamer1.0-plugins-base \
-          gstreamer1.0-plugins-good \
-          libsqlite3-dev \
-          openssl \
-          libffi-dev \
-          autoconf \
-          libtool \
-          pkg-config \
-          zlib1g-dev \
-          libncurses5-dev \
-          libncursesw5-dev \
-          libtinfo5 \
-          cmake \
-          libssl-dev \
-          automake \
-          libltdl-dev
-    
-    - name: Install Buildozer
-      run: |
-        pip install --upgrade pip
+        sudo apt-get install -y python3-pip build-essential git zip unzip openjdk-17-jdk
+        sudo apt-get install -y autoconf libtool pkg-config zlib1g-dev libncurses5-dev
+        sudo apt-get install -y libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev automake
         pip install buildozer cython==0.29.36
     
-    - name: Cache Android SDK
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~/.buildozer/android/platform/android-sdk
-          ~/.buildozer/android/platform/android-ndk
-          ~/.buildozer/android/platform/apache-ant
-          ~/.buildozer/android/platform/packages
-        key: ${{ runner.os }}-android-sdk-${{ hashFiles('buildozer.spec') }}
-        restore-keys: |
-          ${{ runner.os }}-android-sdk-
-    
-    - name: Accept Android Licenses
+    - name: Pre-install Android SDK with licenses
       run: |
-        mkdir -p ~/.buildozer/android/platform/android-sdk/cmdline-tools
-        export ANDROID_SDK_ROOT=~/.buildozer/android/platform/android-sdk
-        yes | ~/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin/sdkmanager --licenses || true
-        yes | ~/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager --licenses || true
+        mkdir -p ~/.buildozer/android/platform/
+        cd ~/.buildozer/android/platform/
+        
+        # Download command line tools
+        wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
+        unzip -q commandlinetools-linux-9477386_latest.zip
+        mkdir -p android-sdk/cmdline-tools
+        mv cmdline-tools android-sdk/cmdline-tools/latest
+        
+        # Set environment
+        export ANDROID_SDK_ROOT=$HOME/.buildozer/android/platform/android-sdk
+        export PATH=$PATH:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin
+        
+        # Accept licenses
+        yes | sdkmanager --licenses
+        
+        # Install required packages
+        sdkmanager "platform-tools" "platforms;android-33" "build-tools;33.0.0"
     
     - name: Build APK
+      env:
+        ANDROID_SDK_ROOT: /home/runner/.buildozer/android/platform/android-sdk
       run: |
-        export ANDROID_SDK_ROOT=~/.buildozer/android/platform/android-sdk
-        buildozer android debug || true
-        # Retry with license acceptance if first fails
-        yes | ~/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin/sdkmanager --licenses 2>/dev/null || true
-        yes | ~/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager --licenses 2>/dev/null || true
+        export PATH=$PATH:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin
         buildozer android debug
-        
+    
     - name: Upload APK
       uses: actions/upload-artifact@v4
       if: always()
       with:
         name: udhar-app-apk
         path: bin/*.apk
-        retention-days: 5
-        
-    - name: Upload Build Logs
-      uses: actions/upload-artifact@v4
-      if: failure()
-      with:
-        name: build-logs
-        path: ~/.buildozer/android/platform/build-*/build.log
         retention-days: 5
